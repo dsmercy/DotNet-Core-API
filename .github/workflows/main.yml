@@ -41,7 +41,7 @@ jobs:
 
     - name: Build and push Docker image
       run: |
-        docker build -t dsmercy:${{ github.sha }} .
+        docker build ./WebAPI/VeggiFoodAPI/Dockerfile -t dsmercy:${{ github.sha }} .
         docker push dsmercy:${{ github.sha }}
 
   deploy:
