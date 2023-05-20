@@ -1,64 +1,64 @@
-name: MyBuild
+name: Build, Dockerize, and Deploy
 
 on:
   push:
-    branches: 
-     - main
-     - 'feature/**'
-     - 'dev/**'
-  workflow_dispatch:
-    logLevel:
-      description: 'Log level'
-      required: true
-      default: 'information'
-
+    branches:
+      - main
+      - 'feature/**'
 jobs:
-  Build:
+  build:
     runs-on: ubuntu-latest
+
     steps:
-    - uses: actions/checkout@v2
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
     - name: Setup .NET Core
       uses: actions/setup-dotnet@v1
       with:
-        dotnet-version: '6.0.x'
-    - name: Install dependencies
+        dotnet-version: '6.0.x'  # Replace with the desired .NET Core version
+
+    - name: Restore NuGet packages
       run: dotnet restore ./WebAPI/VeggiFoodAPI/VeggiFoodAPI.csproj
+
     - name: Build
-      run: dotnet build ./WebAPI/VeggiFoodAPI/VeggiFoodAPI.csproj --configuration Release --no-restore
-  PublishArtifacts:
-    needs: Build
-    runs-on: ubuntu-latest    
+      run: dotnet build ./WebAPI/VeggiFoodAPI/VeggiFoodAPI.csproj --configuration Release
+
+  dockerize:
+    needs: build
+    runs-on: ubuntu-latest
+
     steps:
-    - uses: actions/checkout@v2
-    - name: Set package Version for main branch
-      if: github.ref == 'refs/heads/main'
-      run: echo "PACKAGE_VERSION=$(date +'%Y.%m.%d').$GITHUB_RUN_NUMBER-prod" >> $GITHUB_ENV
-    - name: Set package Version for feature branch
-      if: contains(github.ref, 'feature')
-      run: echo "PACKAGE_VERSION=$(date +'%Y.%m.%d').$GITHUB_RUN_NUMBER-dev" >> $GITHUB_ENV
-    - name: Setup .NET Core
-      uses: actions/setup-dotnet@v1
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Login to Docker registry
+      uses: docker/login-action@v1
       with:
-        dotnet-version: '6.0.x'
-    - name: Install dependencies
-      run: dotnet restore ./WebAPI/VeggiFoodAPI/VeggiFoodAPI.csproj
-    - name: Create artifacts folder
+        registry: <docker-registry-url>
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Build and push Docker image
       run: |
-        mkdir "$GITHUB_WORKSPACE/artifacts"
-        mkdir "$GITHUB_WORKSPACE/artifacts/VeggiFoodAPI"
-    - name: Publish VeggiFoodAPI
-      run: dotnet publish WebAPI/VeggiFoodAPI/VeggiFoodAPI.csproj --configuration Release --no-restore --output "$GITHUB_WORKSPACE/artifacts/VeggiFoodAPI"
-    - name: Install Octopus CLI
-      uses: OctopusDeploy/install-octopus-cli-action@v1
+        docker build -t dsmercy:${{ github.sha }} .
+        docker push dsmercy:${{ github.sha }}
+
+  deploy:
+    needs: dockerize
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Deploy to Octopus
+      uses: OctopusDeploy/action-create-release@v1
       with:
-        version: latest
-    - name: Package VeggiFoodAPI
-      run: |
-        octo pack --id="VeggiFoodAPI" --format="Zip" --version="$PACKAGE_VERSION" --basePath="$GITHUB_WORKSPACE/artifacts/VeggiFoodAPI" --outFolder="$GITHUB_WORKSPACE/artifacts"
-    - name: Push packages to Octopus
-      uses: OctopusDeploy/push-package-action@v1
-      with:
-        api_key: ${{ secrets.OCTOPUSSERVERAPIKEY }}
-        server: ${{ secrets.OCTOPUSSERVERURL }}
-        packages: "artifacts/VeggiFoodAPI.${{ env.PACKAGE_VERSION }}.zip"
-        space: ${{ secrets.OCTOPUSSERVER_SPACE }}
+        OctopusServerEndpoint: '<octopus-server-url>'
+        OctopusApiKey: ${{ secrets.OCTOPUS_API_KEY }}
+        SpaceName: '<octopus-space-name>'
+        ProjectName: '<octopus-project-name>'
+        PackageVersion: '${{ github.sha }}'
+        ReleaseVersion: '${{ github.sha }}'
+        AdditionalArguments: '--packageversion=$RELEASE_VERSION'
