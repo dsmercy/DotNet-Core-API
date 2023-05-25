@@ -35,7 +35,7 @@ jobs:
       with:
         dotnet-version: '6.0.x'
     - name: Install dependencies
-      run: dotnet restore ./WebAPI/VeggiFoodAPI/VeggiFoodAPI.csproj
+      run: dotnet restore ./WebAPI/VeggieTest/VeggieTest.csproj
     - name: Run test cases
       run: dotnet test ./WebAPI/VeggieTest/VeggieTest.csproj --configuration Release --no-restore  --verbosity normal    
   PublishArtifacts:
