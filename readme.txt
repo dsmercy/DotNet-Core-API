@@ -15,4 +15,5 @@ A dotnet 6 E-commerce API built with following features :</p>
     * Entity framework core
     * Unit testing
     * DB Schema Project
+    * Github actions workflow to deploy application on Octopus
 
